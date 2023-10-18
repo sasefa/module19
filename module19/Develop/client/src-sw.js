@@ -1,0 +1,43 @@
+const { offlineFallback, warmStrategyCache } = require('workbox-recipes');
+const { CacheFirst } = require('workbox-strategies');
+const { registerRoute } = require('workbox-routing');
+const { CacheableResponsePlugin } = require('workbox-cacheable-response');
+const { ExpirationPlugin } = require('workbox-expiration');
+const { precacheAndRoute } = require('workbox-precaching/precacheAndRoute');
+
+precacheAndRoute(self.__WB_MANIFEST);
+
+const pageCache = new CacheFirst({
+  cacheName: 'page-cache',
+  plugins: [
+    new CacheableResponsePlugin({
+      statuses: [0, 200],
+    }),
+    new ExpirationPlugin({
+      maxAgeSeconds: 30 * 24 * 60 * 60,
+    }),
+  ],
+});
+
+warmStrategyCache({
+  urls: ['/index.html', '/'],
+  strategy: pageCache,
+});
+
+registerRoute(({ request }) => request.mode === 'navigate', pageCache);
+
+// Implement asset caching
+registerRoute(({ request }) => request.destination === 'style', new CacheFirst());
+// Fallback for HTML requests. To match navigation requests, use a NavigationRoute.
+registerRoute(
+  ({ event }) => event.request.headers.get('accept').includes('text/html'),
+  new NetworkFirst({
+    cacheName: 'html-cache',
+  }),
+);
+registerRoute(
+  /^https:\/\/api\.external\.com/,
+  new StaleWhileRevalidate({
+    cacheName: 'external-data-cache',
+  })
+);
